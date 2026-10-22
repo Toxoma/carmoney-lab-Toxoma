@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace CarMoneyLab\Repository;
 
+use CarMoneyLab\Domain\DuplicateActiveApplicationException;
 use PDO;
+use PDOException;
 
 /**
  * Хранение заявок, автомобилей и решений.
@@ -21,16 +23,25 @@ final class ApplicationRepository
      */
     public function save(string $applicantRef, array $input, array $assessment): int
     {
-        $statement = $this->pdo->prepare(
-            'INSERT INTO applications (applicant_ref, requested_amount, term_months, status)
-             VALUES (:applicant_ref, :amount, :term, :status)'
-        );
-        $statement->execute([
-            ':applicant_ref' => $applicantRef,
-            ':amount' => $input['requested_amount'],
-            ':term' => $input['term_months'],
-            ':status' => 'decided',
-        ]);
+        try {
+            $statement = $this->pdo->prepare(
+                'INSERT INTO applications (applicant_ref, requested_amount, term_months, status)
+                 VALUES (:applicant_ref, :amount, :term, :status)'
+            );
+            $statement->execute([
+                ':applicant_ref' => $applicantRef,
+                ':amount' => $input['requested_amount'],
+                ':term' => $input['term_months'],
+                ':status' => 'decided',
+            ]);
+        } catch (PDOException $exception) {
+            // 1062 — дубликат UNIQUE-ключа uq_applications_active: вторая активная заявка.
+            if ((int) ($exception->errorInfo[1] ?? 0) === 1062) {
+                throw new DuplicateActiveApplicationException($applicantRef);
+            }
+
+            throw $exception;
+        }
 
         $applicationId = (int) $this->pdo->lastInsertId();
 

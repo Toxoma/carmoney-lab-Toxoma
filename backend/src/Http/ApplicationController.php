@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CarMoneyLab\Http;
 
 use CarMoneyLab\Domain\AssessmentService;
+use CarMoneyLab\Domain\DuplicateActiveApplicationException;
 use CarMoneyLab\Domain\ValidationException;
 use CarMoneyLab\Repository\ApplicationRepository;
 use CarMoneyLab\Support\Json;
@@ -31,7 +32,15 @@ final class ApplicationController
         }
 
         $applicantRef = (string) ($payload['applicant_ref'] ?? 'CL-ANON');
-        $id = $this->repository->save($applicantRef, $result['input'], $result);
+
+        try {
+            $id = $this->repository->save($applicantRef, $result['input'], $result);
+        } catch (DuplicateActiveApplicationException $exception) {
+            return Json::write($response, [
+                // Текст сообщения задаётся в DuplicateActiveApplicationException — здесь не дублируем.
+                'errors' => ['applicant_ref' => $exception->getMessage()],
+            ], 409);
+        }
 
         error_log(sprintf(
             'application=%d ltv=%s decision=%s limit=%d',
