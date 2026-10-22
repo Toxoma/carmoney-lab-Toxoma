@@ -7,9 +7,14 @@ CREATE TABLE IF NOT EXISTS applications (
     requested_amount INT UNSIGNED NOT NULL,
     term_months     SMALLINT UNSIGNED NOT NULL,
     status          ENUM('new', 'decided', 'cancelled') NOT NULL DEFAULT 'new',
+    -- 1, пока заявка активна (new/decided); NULL после закрытия (cancelled),
+    -- чтобы UNIQUE-ключ ниже пропускал закрытые заявки — их у клиента может быть много.
+    is_active       TINYINT(1) GENERATED ALWAYS AS (IF(status IN ('new', 'decided'), 1, NULL)) STORED,
     created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    KEY idx_applications_status (status)
+    KEY idx_applications_status (status),
+    -- У клиента максимум одна активная заявка (бизнес-правило учебного сервиса).
+    UNIQUE KEY uq_applications_active (applicant_ref, is_active)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 CREATE TABLE IF NOT EXISTS vehicles (
